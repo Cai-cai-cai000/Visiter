@@ -1,231 +1,830 @@
-import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, PlusSquare, List, QrCode, Bell, User, X, Clock } from 'lucide-react';
-import VisitorForm from './components/VisitorForm';
-import VisitorList from './components/VisitorList';
-import QRScanner from './components/QRScanner';
-import { Application, ApplicationStatus } from './types';
+import React, { useState, useEffect, useRef } from 'react';
+import { StatsCard } from './components/StatsCard';
+import { Modal } from './components/Modal';
+import { INITIAL_APPLICATIONS } from './constants';
+import { Application, ApplicationStatus, Visitor, VerificationLog } from './types';
 
-// Mock initial data
-const INITIAL_DATA: Application[] = [
-    {
-        id: 'VS20240613001',
-        visitDate: '2024-06-13',
-        startTime: '09:00',
-        location: '行政楼201',
-        duration: 2,
-        purpose: '商务洽谈',
+// --- Tab Components ---
+
+// 1. New Visitor Form
+const NewVisitorForm: React.FC<{ onSubmit: (app: Application) => void }> = ({ onSubmit }) => {
+    const [visitors, setVisitors] = useState<Partial<Visitor>[]>([{ id: Date.now().toString() }]);
+    const [formData, setFormData] = useState({
+        visitDate: '',
+        startTime: '',
+        location: '',
+        duration: 1,
+        purpose: '',
         maxVisitors: 5,
         validDays: 1,
-        disclaimer: '...',
-        visitors: [{ id: '1', name: '王经理', phone: '13800138000', idType: 'id-card', idNumber: '110...' }],
-        status: 'pending',
-        createdAt: '2024-06-12 10:00',
-        aiRiskAnalysis: 'Low Risk: Business meeting context identified.'
-    },
-    {
-        id: 'VS20240613002',
-        visitDate: '2024-06-13',
-        startTime: '14:00',
-        location: '实验室3B',
-        duration: 1,
-        purpose: '设备维修',
-        maxVisitors: 2,
-        validDays: 1,
-        disclaimer: '...',
-        visitors: [{ id: '2', name: '张工', phone: '13900139000', idType: 'id-card', idNumber: '310...' }],
-        status: 'approved',
-        createdAt: '2024-06-12 11:30'
-    }
-];
+        disclaimer: '访客须知：\n1. 访客进入校园需佩戴访客证，主动配合安保人员检查。\n2. 访客需遵守学校规章制度，保持安静。\n3. 严禁携带易燃易爆等危险物品进入校园。'
+    });
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const addVisitor = () => {
+        if (visitors.length >= formData.maxVisitors) {
+            alert(`已达到访客人数上限 (${formData.maxVisitors})`);
+            return;
+        }
+        setVisitors([...visitors, { id: Date.now().toString() }]);
+    };
+
+    const removeVisitor = (index: number) => {
+        if (visitors.length <= 1) {
+            alert('至少需要一位访客');
+            return;
+        }
+        const newVisitors = [...visitors];
+        newVisitors.splice(index, 1);
+        setVisitors(newVisitors);
+    };
+
+    const updateVisitor = (index: number, field: keyof Visitor, value: string) => {
+        const newVisitors = [...visitors];
+        newVisitors[index] = { ...newVisitors[index], [field]: value };
+        setVisitors(newVisitors);
+    };
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        
+        // Basic validation
+        if(!formData.visitDate || !formData.location || !formData.purpose) {
+            alert("请填写所有必填字段");
+            return;
+        }
+        const validVisitors = visitors.every(v => v.name && v.phone && v.idNumber);
+        if(!validVisitors) {
+            alert("请完善所有访客信息");
+            return;
+        }
+
+        const newApp: Application = {
+            id: `VS${new Date().toISOString().replace(/\D/g, '').slice(0, 14)}`,
+            applicationDate: new Date().toLocaleString(),
+            visitDate: formData.visitDate,
+            startTime: formData.startTime,
+            duration: Number(formData.duration),
+            location: formData.location,
+            purpose: formData.purpose,
+            maxVisitors: Number(formData.maxVisitors),
+            validDays: Number(formData.validDays),
+            status: 'Pending',
+            visitors: visitors as Visitor[]
+        };
+
+        onSubmit(newApp);
+        
+        // Reset (simplified)
+        alert('申请提交成功！');
+        setVisitors([{ id: Date.now().toString() }]);
+    };
+
+    return (
+        <form onSubmit={handleSubmit} className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">拜访日期 <span className="text-red-500">*</span></label>
+                    <input type="date" name="visitDate" required value={formData.visitDate} onChange={handleInputChange}
+                        className="w-full px-4 py-2 bg-white border border-green-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all" />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">开始时间 <span className="text-red-500">*</span></label>
+                    <input type="time" name="startTime" required value={formData.startTime} onChange={handleInputChange}
+                        className="w-full px-4 py-2 bg-white border border-green-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all" />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">拜访地点 <span className="text-red-500">*</span></label>
+                    <input type="text" name="location" placeholder="例如：行政楼201会议室" required value={formData.location} onChange={handleInputChange}
+                        className="w-full px-4 py-2 bg-white border border-green-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all" />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">拜访时长（小时） <span className="text-red-500">*</span></label>
+                    <input type="number" name="duration" min="1" max="8" required value={formData.duration} onChange={handleInputChange}
+                        className="w-full px-4 py-2 bg-white border border-green-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all" />
+                </div>
+            </div>
+
+            <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-1">拜访事由 <span className="text-red-500">*</span></label>
+                <textarea name="purpose" rows={3} placeholder="请详细描述拜访目的和事由" required value={formData.purpose} onChange={handleInputChange}
+                    className="w-full px-4 py-2 bg-white border border-green-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"></textarea>
+            </div>
+
+            <div className="bg-green-50/50 rounded-xl p-4 mb-6 border border-green-100">
+                <h3 className="text-sm font-semibold text-green-800 mb-3">参数设置</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">访客人数上限</label>
+                        <input type="number" name="maxVisitors" value={formData.maxVisitors} onChange={handleInputChange}
+                            className="w-full px-4 py-2 bg-white border border-green-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50" />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">通行证有效期(天)</label>
+                        <input type="number" name="validDays" value={formData.validDays} onChange={handleInputChange}
+                            className="w-full px-4 py-2 bg-white border border-green-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50" />
+                    </div>
+                </div>
+            </div>
+
+            <div className="mb-6">
+                <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-semibold text-gray-700">访客信息</h3>
+                    <button type="button" onClick={addVisitor} className="flex items-center px-3 py-1.5 text-xs text-primary border border-primary rounded-lg hover:bg-primary/10 transition-all">
+                        <i className="fa fa-plus-circle mr-1"></i> 添加访客
+                    </button>
+                </div>
+                
+                <div className="space-y-4">
+                    {visitors.map((visitor, index) => (
+                        <div key={visitor.id} className="bg-gray-50 rounded-lg p-4 border border-gray-100 relative group">
+                            <div className="flex justify-between items-center mb-3">
+                                <span className="text-sm font-medium text-gray-500">访客 {index + 1}</span>
+                                <button type="button" onClick={() => removeVisitor(index)} className="text-gray-400 hover:text-red-500 transition-colors">
+                                    <i className="fa fa-trash"></i>
+                                </button>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <input type="text" placeholder="姓名" required value={visitor.name || ''} 
+                                        onChange={(e) => updateVisitor(index, 'name', e.target.value)}
+                                        className="w-full px-3 py-2 bg-white border border-gray-200 rounded-md text-sm focus:outline-none focus:border-primary" />
+                                </div>
+                                <div>
+                                    <input type="tel" placeholder="手机号码" required value={visitor.phone || ''}
+                                        onChange={(e) => updateVisitor(index, 'phone', e.target.value)}
+                                        className="w-full px-3 py-2 bg-white border border-gray-200 rounded-md text-sm focus:outline-none focus:border-primary" />
+                                </div>
+                                <div>
+                                    <select value={visitor.idType || 'id-card'} onChange={(e) => updateVisitor(index, 'idType', e.target.value)}
+                                        className="w-full px-3 py-2 bg-white border border-gray-200 rounded-md text-sm focus:outline-none focus:border-primary">
+                                        <option value="id-card">身份证</option>
+                                        <option value="passport">护照</option>
+                                        <option value="other">其他</option>
+                                    </select>
+                                </div>
+                                <div className="md:col-span-2">
+                                    <input type="text" placeholder="证件号码" required value={visitor.idNumber || ''}
+                                        onChange={(e) => updateVisitor(index, 'idNumber', e.target.value)}
+                                        className="w-full px-3 py-2 bg-white border border-gray-200 rounded-md text-sm focus:outline-none focus:border-primary" />
+                                </div>
+                                <div className="flex items-center">
+                                    <label className="flex items-center justify-center w-full h-10 border border-dashed border-gray-300 rounded-md cursor-pointer hover:bg-white text-gray-400 text-xs">
+                                        <i className="fa fa-camera mr-2"></i> 上传照片 (模拟)
+                                        <input type="file" className="hidden" />
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                <button type="button" className="px-4 py-2 border border-primary text-primary rounded-lg hover:bg-primary/10 transition-all font-medium">
+                    生成邀请链接
+                </button>
+                <button type="submit" className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-all shadow-md shadow-primary/30 font-medium">
+                    提交申请
+                </button>
+            </div>
+        </form>
+    );
+};
+
+// 2. Application List
+const ApplicationList: React.FC<{ 
+    applications: Application[], 
+    onAction: (type: 'Approve' | 'Reject' | 'View' | 'QR', app: Application) => void
+}> = ({ applications, onAction }) => {
+    const [filterStatus, setFilterStatus] = useState<ApplicationStatus | 'All'>('All');
+    const [page, setPage] = useState(1);
+    const itemsPerPage = 5;
+
+    const filtered = applications.filter(app => filterStatus === 'All' || app.status === filterStatus);
+    const totalPages = Math.ceil(filtered.length / itemsPerPage);
+    const paginated = filtered.slice((page - 1) * itemsPerPage, page * itemsPerPage);
+
+    const getStatusColor = (status: ApplicationStatus) => {
+        switch(status) {
+            case 'Pending': return 'bg-yellow-100 text-yellow-700';
+            case 'Approved': return 'bg-green-100 text-green-700';
+            case 'Rejected': return 'bg-red-100 text-red-700';
+            case 'Expired': return 'bg-gray-100 text-gray-600';
+            default: return 'bg-gray-100 text-gray-700';
+        }
+    };
+
+    const getStatusLabel = (status: ApplicationStatus) => {
+        switch(status) {
+            case 'Pending': return '待审核';
+            case 'Approved': return '已通过';
+            case 'Rejected': return '已拒绝';
+            case 'Expired': return '已过期';
+            default: return status;
+        }
+    };
+
+    return (
+        <div className="p-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                <div className="flex flex-wrap gap-2">
+                    {['All', 'Pending', 'Approved', 'Rejected', 'Expired'].map(status => (
+                        <button key={status} 
+                            onClick={() => { setFilterStatus(status as any); setPage(1); }}
+                            className={`px-3 py-1.5 text-xs rounded-full font-medium transition-colors ${
+                                filterStatus === status 
+                                ? 'bg-primary text-white shadow-sm' 
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}>
+                            {status === 'All' ? '全部' : getStatusLabel(status as ApplicationStatus)}
+                        </button>
+                    ))}
+                </div>
+                <div className="relative">
+                    <input type="text" placeholder="搜索访客..." className="pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-primary w-full md:w-64" />
+                    <i className="fa fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                </div>
+            </div>
+
+            <div className="overflow-x-auto rounded-lg border border-gray-100">
+                <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-green-50/50">
+                        <tr>
+                            <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase">申请编号</th>
+                            <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase">拜访日期</th>
+                            <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase">地点</th>
+                            <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase">人数</th>
+                            <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase">状态</th>
+                            <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-100">
+                        {paginated.map(app => (
+                            <tr key={app.id} className="hover:bg-green-50/30 transition-colors">
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 text-center">{app.id}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">{app.visitDate}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">{app.location}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">{app.visitors.length}人</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-center">
+                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(app.status)}`}>
+                                        {getStatusLabel(app.status)}
+                                    </span>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                                    <button onClick={() => onAction('View', app)} className="text-blue-600 hover:text-blue-800 bg-blue-50 px-2 py-1 rounded text-xs">
+                                        查看
+                                    </button>
+                                    {app.status === 'Pending' && (
+                                        <>
+                                            <button onClick={() => onAction('Approve', app)} className="text-green-600 hover:text-green-800 bg-green-50 px-2 py-1 rounded text-xs">通过</button>
+                                            <button onClick={() => onAction('Reject', app)} className="text-red-600 hover:text-red-800 bg-red-50 px-2 py-1 rounded text-xs">拒绝</button>
+                                        </>
+                                    )}
+                                    {(app.status === 'Approved' || app.status === 'Expired') && (
+                                        <button onClick={() => onAction('QR', app)} className="text-primary hover:text-primary-dark bg-primary-light/50 px-2 py-1 rounded text-xs">
+                                            <i className="fa fa-qrcode mr-1"></i>通行证
+                                        </button>
+                                    )}
+                                </td>
+                            </tr>
+                        ))}
+                        {paginated.length === 0 && (
+                            <tr>
+                                <td colSpan={6} className="px-6 py-8 text-center text-gray-400">
+                                    暂无相关记录
+                                </td>
+                            </tr>
+                        )}
+                    </tbody>
+                </table>
+            </div>
+
+            {totalPages > 1 && (
+                <div className="flex items-center justify-between mt-4 px-2">
+                    <span className="text-sm text-gray-500">第 {page} / {totalPages} 页</span>
+                    <div className="flex gap-1">
+                        <button disabled={page === 1} onClick={() => setPage(page - 1)} className="px-3 py-1 border rounded hover:bg-gray-50 disabled:opacity-50 text-sm">上一页</button>
+                        <button disabled={page === totalPages} onClick={() => setPage(page + 1)} className="px-3 py-1 border rounded hover:bg-gray-50 disabled:opacity-50 text-sm">下一页</button>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// 3. QR Verification
+const QRVerification: React.FC<{ applications: Application[] }> = ({ applications }) => {
+    const [isScanning, setIsScanning] = useState(false);
+    const [result, setResult] = useState<{success: boolean, message: string, detail?: any} | null>(null);
+    const [manualCode, setManualCode] = useState('');
+    const [logs, setLogs] = useState<VerificationLog[]>([]);
+
+    const scanTimeoutRef = useRef<any>(null);
+
+    const stopScan = () => {
+        setIsScanning(false);
+        if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
+    };
+
+    const startScan = () => {
+        setIsScanning(true);
+        setResult(null);
+        // Simulate finding a random application after 2 seconds
+        scanTimeoutRef.current = setTimeout(() => {
+            const random = Math.random();
+            // 70% chance to find a valid approved application, 20% invalid, 10% no find
+            let foundApp: Application | undefined;
+            
+            if (random > 0.3) {
+                 const approvedApps = applications.filter(a => a.status === 'Approved');
+                 if(approvedApps.length > 0) foundApp = approvedApps[Math.floor(Math.random() * approvedApps.length)];
+            } else if (random > 0.1) {
+                 const otherApps = applications.filter(a => a.status !== 'Approved');
+                 if(otherApps.length > 0) foundApp = otherApps[Math.floor(Math.random() * otherApps.length)];
+            }
+
+            if (foundApp) {
+                verify(foundApp.id);
+            } else {
+                 setResult({ success: false, message: '未识别到有效的二维码' });
+            }
+            setIsScanning(false);
+        }, 2000);
+    };
+
+    const verify = (code: string) => {
+        const appId = code.split('-')[0]; // Assuming format ID-VisitorIndex
+        const app = applications.find(a => a.id === appId || a.id === code);
+
+        const newLog: VerificationLog = {
+            id: Date.now().toString(),
+            timestamp: new Date().toLocaleString(),
+            applicationId: code,
+            visitorName: '未知',
+            idNumber: '---',
+            status: 'Failed',
+            message: ''
+        };
+
+        if (!app) {
+            newLog.message = '无效的申请编号';
+            setResult({ success: false, message: '无效的通行证', detail: { code } });
+        } else {
+            newLog.visitorName = app.visitors[0].name + (app.visitors.length > 1 ? ` 等${app.visitors.length}人` : '');
+            newLog.idNumber = app.visitors[0].idNumber;
+            newLog.applicationId = app.id;
+
+            if (app.status === 'Approved') {
+                newLog.status = 'Success';
+                newLog.message = '核验通过';
+                setResult({ 
+                    success: true, 
+                    message: '核验通过', 
+                    detail: { 
+                        name: newLog.visitorName, 
+                        date: app.visitDate, 
+                        location: app.location 
+                    } 
+                });
+            } else if (app.status === 'Expired') {
+                newLog.message = '通行证已过期';
+                setResult({ success: false, message: '通行证已过期' });
+            } else {
+                newLog.message = `状态异常: ${app.status === 'Pending' ? '待审核' : '已拒绝'}`;
+                setResult({ success: false, message: `无法通行: ${newLog.message}` });
+            }
+        }
+        setLogs(prev => [newLog, ...prev]);
+    };
+
+    const handleManualVerify = () => {
+        if(!manualCode) return;
+        verify(manualCode);
+        setManualCode('');
+    };
+
+    useEffect(() => {
+        return () => stopScan();
+    }, []);
+
+    return (
+        <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Scanner Area */}
+            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+                <h3 className="text-lg font-semibold text-gray-700 mb-4">二维码扫描</h3>
+                
+                <div className="relative w-full h-64 bg-black rounded-lg overflow-hidden mb-4 group">
+                    <div 
+                        className="absolute inset-0 bg-cover bg-center opacity-80"
+                        style={{ backgroundImage: "url('https://picsum.photos/800/450')" }}
+                    ></div>
+                    {isScanning && (
+                         <>
+                            <div className="absolute inset-0 bg-black/10 z-10"></div>
+                            <div className="absolute top-0 left-0 w-full h-1 bg-primary shadow-[0_0_15px_rgba(16,185,129,0.8)] z-20 scan-animation"></div>
+                            <div className="absolute inset-0 flex items-center justify-center z-30">
+                                <div className="w-48 h-48 border-2 border-primary/50 rounded-lg relative">
+                                    <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-primary"></div>
+                                    <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-primary"></div>
+                                    <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-primary"></div>
+                                    <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-primary"></div>
+                                </div>
+                            </div>
+                            <div className="absolute bottom-4 left-0 w-full text-center text-white text-sm z-30 font-medium tracking-wide">
+                                正在扫描...
+                            </div>
+                         </>
+                    )}
+                    {!isScanning && (
+                         <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                             <span className="text-white/80"><i className="fa fa-camera mr-2"></i>摄像头已关闭</span>
+                         </div>
+                    )}
+                </div>
+
+                <div className="flex justify-center gap-3 mb-6">
+                    {!isScanning ? (
+                        <button onClick={startScan} className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-all flex items-center shadow-lg shadow-primary/30">
+                            <i className="fa fa-play mr-2"></i> 开始扫描
+                        </button>
+                    ) : (
+                        <button onClick={stopScan} className="px-6 py-2 bg-danger text-white rounded-lg hover:bg-red-600 transition-all flex items-center shadow-lg shadow-danger/30">
+                            <i className="fa fa-stop mr-2"></i> 停止扫描
+                        </button>
+                    )}
+                </div>
+
+                <div className="border-t border-gray-100 pt-6">
+                    <h4 className="text-sm font-medium text-gray-700 mb-3">手动输入核验</h4>
+                    <div className="flex gap-2">
+                        <input 
+                            type="text" 
+                            value={manualCode}
+                            onChange={(e) => setManualCode(e.target.value)}
+                            placeholder="输入申请编号或核验码" 
+                            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        />
+                        <button onClick={handleManualVerify} className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-all">
+                            验证
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {/* Results & Log */}
+            <div className="flex flex-col gap-6">
+                {/* Result Card */}
+                <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm min-h-[160px] flex flex-col justify-center">
+                    {!result ? (
+                        <div className="text-center text-gray-400">
+                            <i className="fa fa-qrcode text-4xl mb-3 opacity-20"></i>
+                            <p>请扫描或输入验证码</p>
+                        </div>
+                    ) : (
+                        <div className={`text-center ${result.success ? 'text-green-600' : 'text-red-500'}`}>
+                            <div className={`w-16 h-16 rounded-full mx-auto flex items-center justify-center mb-3 ${result.success ? 'bg-green-100' : 'bg-red-100'}`}>
+                                <i className={`fa ${result.success ? 'fa-check' : 'fa-times'} text-3xl`}></i>
+                            </div>
+                            <h3 className="text-xl font-bold mb-1">{result.message}</h3>
+                            {result.detail && (
+                                <div className="text-sm text-gray-600 mt-2 bg-gray-50 p-3 rounded-lg text-left">
+                                    {result.detail.name && <p><strong>访客:</strong> {result.detail.name}</p>}
+                                    {result.detail.date && <p><strong>日期:</strong> {result.detail.date}</p>}
+                                    {result.detail.location && <p><strong>地点:</strong> {result.detail.location}</p>}
+                                    {result.detail.code && <p><strong>代码:</strong> {result.detail.code}</p>}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+
+                {/* History Logs */}
+                <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm flex-1">
+                     <h3 className="text-lg font-semibold text-gray-700 mb-4">最近核验记录</h3>
+                     <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-2">
+                         {logs.length === 0 && <p className="text-gray-400 text-sm text-center py-4">暂无记录</p>}
+                         {logs.map(log => (
+                             <div key={log.id} className="p-3 bg-gray-50 rounded-lg border-l-4 border-transparent hover:border-l-4 hover:border-primary transition-all">
+                                 <div className="flex justify-between items-start">
+                                     <span className="font-medium text-gray-700">{log.visitorName}</span>
+                                     <span className={`text-xs px-2 py-0.5 rounded ${log.status === 'Success' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-500'}`}>
+                                         {log.status === 'Success' ? '通过' : '失败'}
+                                     </span>
+                                 </div>
+                                 <div className="text-xs text-gray-500 mt-1 flex justify-between">
+                                     <span>{log.applicationId}</span>
+                                     <span>{log.timestamp.split(' ')[1]}</span>
+                                 </div>
+                                 {log.status === 'Failed' && <div className="text-xs text-red-400 mt-1">{log.message}</div>}
+                             </div>
+                         ))}
+                     </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+
+// --- Main App Component ---
 
 const App: React.FC = () => {
-    const [activeTab, setActiveTab] = useState<'new' | 'list' | 'qr'>('list');
-    const [applications, setApplications] = useState<Application[]>(INITIAL_DATA);
-    const [stats, setStats] = useState({ today: 0, week: 0, pending: 0 });
+    const [activeTab, setActiveTab] = useState<'new' | 'list' | 'verify'>('new');
+    const [applications, setApplications] = useState<Application[]>(INITIAL_APPLICATIONS);
+    
+    // Modals state
     const [qrModalApp, setQrModalApp] = useState<Application | null>(null);
+    const [viewApp, setViewApp] = useState<Application | null>(null);
+    const [confirmAction, setConfirmAction] = useState<{ id: string, status: ApplicationStatus, title: string, message: string } | null>(null);
 
-    // Calculate stats
-    useEffect(() => {
-        const todayStr = new Date().toISOString().split('T')[0];
-        const todayCount = applications.filter(a => a.visitDate === todayStr).length;
-        // Simplified weekly logic for demo
-        const weekCount = applications.length; 
-        const pendingCount = applications.filter(a => a.status === 'pending').length;
-
-        setStats({ today: todayCount, week: weekCount, pending: pendingCount });
-    }, [applications]);
+    // Derived Stats
+    const stats = {
+        today: 12, // Simulation
+        week: 48,
+        pending: applications.filter(a => a.status === 'Pending').length
+    };
 
     const handleNewApplication = (app: Application) => {
         setApplications([app, ...applications]);
         setActiveTab('list');
     };
 
-    const handleUpdateStatus = (id: string, status: ApplicationStatus) => {
+    const handleStatusChange = (id: string, status: ApplicationStatus) => {
         setApplications(apps => apps.map(app => 
             app.id === id ? { ...app, status } : app
         ));
     };
 
+    const handleListAction = (type: 'Approve' | 'Reject' | 'View' | 'QR', app: Application) => {
+        if (type === 'QR') {
+            setQrModalApp(app);
+        } else if (type === 'View') {
+            setViewApp(app);
+        } else if (type === 'Approve') {
+            setConfirmAction({
+                id: app.id,
+                status: 'Approved',
+                title: '通过申请',
+                message: `确定要通过申请 ${app.id} 吗？`
+            });
+        } else if (type === 'Reject') {
+            setConfirmAction({
+                id: app.id,
+                status: 'Rejected',
+                title: '拒绝申请',
+                message: `确定要拒绝申请 ${app.id} 吗？`
+            });
+        }
+    };
+
+    const executeConfirmAction = () => {
+        if (confirmAction) {
+            handleStatusChange(confirmAction.id, confirmAction.status);
+            setConfirmAction(null);
+        }
+    };
+
     return (
-        <div className="min-h-screen bg-surface pb-10">
-            {/* Header / Nav */}
-            <header className="bg-surface-card shadow-sm border-b border-gray-200 sticky top-0 z-40">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex justify-between h-16 items-center">
-                        <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white font-bold">
-                                S
-                            </div>
-                            <span className="font-bold text-xl text-text-primary tracking-tight">Sakura<span className="text-primary">Visit</span></span>
-                        </div>
-                        <div className="flex items-center gap-4">
-                            <button className="p-2 text-text-light hover:text-primary transition-colors relative">
-                                <Bell size={20} />
-                                <span className="absolute top-1 right-1 w-2 h-2 bg-danger rounded-full"></span>
-                            </button>
-                            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary border border-primary/20">
-                                <User size={16} />
-                            </div>
-                        </div>
-                    </div>
+        <div className="max-w-7xl mx-auto p-4 md:p-6 pb-20">
+            {/* Header / Breadcrumb */}
+            <div className="mb-8">
+                <nav className="text-sm text-gray-500 mb-2 flex items-center gap-2">
+                     <i className="fa fa-home"></i> 首页 
+                     <i className="fa fa-angle-right text-gray-300"></i> 学校管理 
+                     <i className="fa fa-angle-right text-gray-300"></i> <span className="text-primary font-medium">访客申请管理</span>
+                </nav>
+                <h1 className="text-2xl font-bold text-gray-800">生态校园访客系统</h1>
+            </div>
+
+            {/* Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                <StatsCard 
+                    title="今日访客" 
+                    value={stats.today} 
+                    icon="fa-user" 
+                    bgClass="bg-primary/10" 
+                    colorClass="text-primary" 
+                />
+                <StatsCard 
+                    title="本周访客" 
+                    value={stats.week} 
+                    icon="fa-calendar" 
+                    bgClass="bg-blue-50" 
+                    colorClass="text-blue-500" 
+                />
+                <StatsCard 
+                    title="待审核申请" 
+                    value={stats.pending} 
+                    icon="fa-clock-o" 
+                    bgClass="bg-yellow-50" 
+                    colorClass="text-yellow-500" 
+                />
+            </div>
+
+            {/* Main Content Card */}
+            <div className="bg-white rounded-xl shadow-card min-h-[500px] border border-gray-100 overflow-hidden">
+                {/* Tabs Header */}
+                <div className="border-b border-gray-100 px-6 pt-4 flex gap-6 overflow-x-auto">
+                    {[
+                        { id: 'new', label: '新增访客申请' },
+                        { id: 'list', label: '访客申请列表' },
+                        { id: 'verify', label: '二维码核验' }
+                    ].map(tab => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id as any)}
+                            className={`pb-4 px-2 text-sm font-medium transition-all relative ${
+                                activeTab === tab.id 
+                                ? 'text-primary' 
+                                : 'text-gray-500 hover:text-gray-700'
+                            }`}
+                        >
+                            {tab.label}
+                            {activeTab === tab.id && (
+                                <div className="absolute bottom-0 left-0 w-full h-0.5 bg-primary rounded-t-full"></div>
+                            )}
+                        </button>
+                    ))}
                 </div>
-            </header>
 
-            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                {/* Dashboard Stats */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    <div className="bg-surface-card p-6 rounded-2xl shadow-card hover:shadow-card-hover transition-all border border-gray-100">
-                        <div className="flex justify-between items-start">
-                            <div>
-                                <p className="text-sm font-medium text-text-secondary">今日访客</p>
-                                <h3 className="text-3xl font-bold text-text-primary mt-2">{stats.today}</h3>
-                            </div>
-                            <div className="p-3 bg-primary/10 rounded-xl text-primary">
-                                <User size={24} />
-                            </div>
-                        </div>
-                    </div>
-                    <div className="bg-surface-card p-6 rounded-2xl shadow-card hover:shadow-card-hover transition-all border border-gray-100">
-                        <div className="flex justify-between items-start">
-                            <div>
-                                <p className="text-sm font-medium text-text-secondary">本周访客</p>
-                                <h3 className="text-3xl font-bold text-text-primary mt-2">{stats.week}</h3>
-                            </div>
-                            <div className="p-3 bg-blue-100 rounded-xl text-blue-600">
-                                <LayoutDashboard size={24} />
-                            </div>
-                        </div>
-                    </div>
-                    <div className="bg-surface-card p-6 rounded-2xl shadow-card hover:shadow-card-hover transition-all border border-gray-100">
-                        <div className="flex justify-between items-start">
-                            <div>
-                                <p className="text-sm font-medium text-text-secondary">待审核</p>
-                                <h3 className="text-3xl font-bold text-warning mt-2">{stats.pending}</h3>
-                            </div>
-                            <div className="p-3 bg-warning/10 rounded-xl text-warning">
-                                <Clock size={24} />
-                            </div>
-                        </div>
-                    </div>
+                {/* Tab Content */}
+                <div className="bg-surface/30 min-h-[600px]">
+                    {activeTab === 'new' && <NewVisitorForm onSubmit={handleNewApplication} />}
+                    {activeTab === 'list' && (
+                        <ApplicationList 
+                            applications={applications} 
+                            onAction={handleListAction}
+                        />
+                    )}
+                    {activeTab === 'verify' && <QRVerification applications={applications} />}
                 </div>
+            </div>
 
-                {/* Main Content Area */}
-                <div className="bg-surface-card rounded-2xl shadow-card overflow-hidden min-h-[600px]">
-                    {/* Tabs */}
-                    <div className="flex border-b border-gray-100 px-6 pt-4 gap-6 overflow-x-auto">
-                        <button 
-                            onClick={() => setActiveTab('new')}
-                            className={`pb-4 px-2 text-sm font-medium transition-all flex items-center gap-2 border-b-2 ${
-                                activeTab === 'new' 
-                                    ? 'border-primary text-primary' 
-                                    : 'border-transparent text-text-secondary hover:text-text-primary'
-                            }`}
-                        >
-                            <PlusSquare size={18} /> 新增申请
-                        </button>
-                        <button 
-                            onClick={() => setActiveTab('list')}
-                            className={`pb-4 px-2 text-sm font-medium transition-all flex items-center gap-2 border-b-2 ${
-                                activeTab === 'list' 
-                                    ? 'border-primary text-primary' 
-                                    : 'border-transparent text-text-secondary hover:text-text-primary'
-                            }`}
-                        >
-                            <List size={18} /> 申请列表
-                        </button>
-                        <button 
-                            onClick={() => setActiveTab('qr')}
-                            className={`pb-4 px-2 text-sm font-medium transition-all flex items-center gap-2 border-b-2 ${
-                                activeTab === 'qr' 
-                                    ? 'border-primary text-primary' 
-                                    : 'border-transparent text-text-secondary hover:text-text-primary'
-                            }`}
-                        >
-                            <QrCode size={18} /> 二维码核验
-                        </button>
+            {/* View Detail Modal */}
+            <Modal
+                isOpen={!!viewApp}
+                onClose={() => setViewApp(null)}
+                title="访客详情"
+            >
+                {viewApp && (
+                    <div className="space-y-6">
+                        {/* Basic Info */}
+                        <div className="bg-gray-50 rounded-lg p-4 border border-gray-100">
+                            <h4 className="text-sm font-semibold text-gray-700 mb-3 border-b border-gray-200 pb-2">基本信息</h4>
+                            <div className="grid grid-cols-2 gap-4 text-sm">
+                                <div>
+                                    <span className="text-gray-500">申请编号：</span>
+                                    <span className="font-medium">{viewApp.id}</span>
+                                </div>
+                                <div>
+                                    <span className="text-gray-500">申请时间：</span>
+                                    <span className="font-medium">{viewApp.applicationDate}</span>
+                                </div>
+                                <div>
+                                    <span className="text-gray-500">状态：</span>
+                                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                                        viewApp.status === 'Approved' ? 'bg-green-100 text-green-700' :
+                                        viewApp.status === 'Rejected' ? 'bg-red-100 text-red-700' :
+                                        viewApp.status === 'Expired' ? 'bg-gray-100 text-gray-600' :
+                                        'bg-yellow-100 text-yellow-700'
+                                    }`}>{viewApp.status}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Visit Info */}
+                        <div className="bg-gray-50 rounded-lg p-4 border border-gray-100">
+                            <h4 className="text-sm font-semibold text-gray-700 mb-3 border-b border-gray-200 pb-2">拜访信息</h4>
+                            <div className="grid grid-cols-2 gap-4 text-sm">
+                                <div>
+                                    <span className="text-gray-500">拜访日期：</span>
+                                    <span className="font-medium">{viewApp.visitDate}</span>
+                                </div>
+                                <div>
+                                    <span className="text-gray-500">开始时间：</span>
+                                    <span className="font-medium">{viewApp.startTime}</span>
+                                </div>
+                                <div>
+                                    <span className="text-gray-500">拜访地点：</span>
+                                    <span className="font-medium">{viewApp.location}</span>
+                                </div>
+                                <div>
+                                    <span className="text-gray-500">预计时长：</span>
+                                    <span className="font-medium">{viewApp.duration} 小时</span>
+                                </div>
+                                <div className="col-span-2">
+                                    <span className="text-gray-500 block mb-1">拜访事由：</span>
+                                    <p className="font-medium text-gray-800 bg-white p-2 rounded border border-gray-100">{viewApp.purpose}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Visitor List */}
+                        <div>
+                            <h4 className="text-sm font-semibold text-gray-700 mb-3">访客名单 ({viewApp.visitors.length}人)</h4>
+                            <div className="overflow-hidden border border-gray-200 rounded-lg">
+                                <table className="min-w-full divide-y divide-gray-200">
+                                    <thead className="bg-gray-50">
+                                        <tr>
+                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">姓名</th>
+                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">手机号</th>
+                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">证件号码</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-gray-200">
+                                        {viewApp.visitors.map((v) => (
+                                            <tr key={v.id}>
+                                                <td className="px-4 py-2 text-sm text-gray-900">{v.name}</td>
+                                                <td className="px-4 py-2 text-sm text-gray-500">{v.phone}</td>
+                                                <td className="px-4 py-2 text-sm text-gray-500">{v.idNumber}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     </div>
+                )}
+            </Modal>
 
-                    {/* Content */}
-                    <div className="bg-surface-card">
-                        {activeTab === 'new' && <VisitorForm onSubmit={handleNewApplication} />}
-                        {activeTab === 'list' && (
-                            <VisitorList 
-                                applications={applications} 
-                                onUpdateStatus={handleUpdateStatus} 
-                                onViewQr={setQrModalApp} 
+            {/* Confirmation Modal */}
+            <Modal
+                isOpen={!!confirmAction}
+                onClose={() => setConfirmAction(null)}
+                title={confirmAction?.title || '确认'}
+                footer={
+                    <>
+                        <button onClick={() => setConfirmAction(null)} className="px-4 py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors">取消</button>
+                        <button onClick={executeConfirmAction} className={`px-4 py-2 text-white rounded-lg transition-colors shadow-md ${
+                            confirmAction?.status === 'Approved' ? 'bg-primary hover:bg-primary-dark shadow-primary/30' : 'bg-red-500 hover:bg-red-600 shadow-red-500/30'
+                        }`}>确定</button>
+                    </>
+                }
+            >
+                <div className="py-4 text-center">
+                    <div className={`w-12 h-12 rounded-full mx-auto flex items-center justify-center mb-4 ${
+                        confirmAction?.status === 'Approved' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
+                    }`}>
+                        <i className={`fa ${confirmAction?.status === 'Approved' ? 'fa-check' : 'fa-exclamation'} text-xl`}></i>
+                    </div>
+                    <p className="text-gray-700 font-medium">{confirmAction?.message}</p>
+                </div>
+            </Modal>
+
+            {/* QR Code Modal */}
+            <Modal 
+                isOpen={!!qrModalApp} 
+                onClose={() => setQrModalApp(null)} 
+                title="访客通行证"
+                footer={
+                    <button className="text-primary hover:text-primary-dark font-medium text-sm">
+                        <i className="fa fa-download mr-1"></i> 下载通行证
+                    </button>
+                }
+            >
+                {qrModalApp && (
+                    <div className="flex flex-col items-center py-4">
+                        <div className="bg-white p-4 border border-gray-200 rounded-lg shadow-sm mb-6">
+                            <img 
+                                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${qrModalApp.id}&color=10-185-129`} 
+                                alt="QR Code" 
+                                className="w-48 h-48"
                             />
-                        )}
-                        {activeTab === 'qr' && <QRScanner applications={applications} />}
-                    </div>
-                </div>
-            </main>
-
-            {/* QR Modal */}
-            {qrModalApp && (
-                <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-                    <div className="bg-surface-card rounded-2xl w-full max-w-sm p-6 relative animate-pulse-fast-none shadow-2xl">
-                        <button 
-                            onClick={() => setQrModalApp(null)}
-                            className="absolute top-4 right-4 text-text-light hover:text-text-secondary"
-                        >
-                            <X size={24} />
-                        </button>
-                        
-                        <div className="text-center">
-                            <h3 className="text-xl font-bold text-text-primary mb-1">访客通行证</h3>
-                            <p className="text-sm text-text-secondary mb-6">出示此码给安保人员扫码通行</p>
+                        </div>
+                        <div className="text-center w-full">
+                            <h2 className="text-xl font-bold text-gray-800 mb-1">
+                                {qrModalApp.visitors[0].name}
+                                {qrModalApp.visitors.length > 1 && <span className="text-sm font-normal text-gray-500 ml-2">(+{qrModalApp.visitors.length -1}人)</span>}
+                            </h2>
+                            <p className="text-gray-500 text-sm mb-4">{qrModalApp.visitors[0].idNumber}</p>
                             
-                            <div className="bg-surface p-4 rounded-xl mb-6 inline-block border-2 border-dashed border-primary/30">
-                                {/* Simulated QR Image using API - color 2e7d32 is the new primary hex */}
-                                <img 
-                                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${qrModalApp.id}&color=2e7d32`} 
-                                    alt="QR Code" 
-                                    className="w-48 h-48 rounded-lg mix-blend-multiply"
-                                />
-                            </div>
-
-                            <div className="text-left bg-surface p-4 rounded-xl space-y-2 text-sm">
+                            <div className="bg-gray-50 rounded-lg p-4 w-full text-left space-y-2 text-sm text-gray-600">
                                 <div className="flex justify-between">
-                                    <span className="text-text-secondary">编号</span>
-                                    <span className="font-mono font-bold text-text-primary">{qrModalApp.id}</span>
+                                    <span>申请编号:</span>
+                                    <span className="font-medium text-gray-800">{qrModalApp.id}</span>
                                 </div>
                                 <div className="flex justify-between">
-                                    <span className="text-text-secondary">主访客</span>
-                                    <span className="font-medium text-text-primary">{qrModalApp.visitors[0].name}</span>
+                                    <span>拜访日期:</span>
+                                    <span className="font-medium text-gray-800">{qrModalApp.visitDate}</span>
                                 </div>
                                 <div className="flex justify-between">
-                                    <span className="text-text-secondary">有效期至</span>
-                                    <span className="font-medium text-primary">{qrModalApp.visitDate}</span>
+                                    <span>有效期至:</span>
+                                    <span className="font-medium text-gray-800">{qrModalApp.visitDate} 23:59</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span>拜访地点:</span>
+                                    <span className="font-medium text-gray-800">{qrModalApp.location}</span>
                                 </div>
                             </div>
-
-                            <button className="mt-6 w-full py-2.5 bg-primary text-white rounded-xl font-medium shadow-lg shadow-primary/30 hover:shadow-xl hover:bg-primary-dark transition-all">
-                                下载通行证
-                            </button>
                         </div>
                     </div>
-                </div>
-            )}
+                )}
+            </Modal>
         </div>
     );
 };

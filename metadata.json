@@ -1,6 +1,6 @@
 {
-  "name": "Sakura Visitor System",
-  "description": "A cute and functional visitor management system for schools with Gemini AI integration for security checks.",
+  "name": "EcoCampus Visitor System",
+  "description": "A fresh, green-themed visitor management system for schools with application processing and QR verification.",
   "requestFramePermissions": [
     "camera"
   ]

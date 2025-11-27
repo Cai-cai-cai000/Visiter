@@ -3,55 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>访客申请管理 - 学校管理系统</title>
+    <title>访客申请管理 - 生态校园系统</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
     <script>
         tailwind.config = {
             theme: {
                 extend: {
                     colors: {
-                        primary: '#2e7d32',     // 主绿色
-                        'primary-light': '#66bb6a', // 亮绿色
-                        'primary-dark': '#1b5e20',  // 深绿色
-                        secondary: '#43a047',   // 次绿色
-                        'secondary-dark': '#2e7d32',
-                        surface: '#fafafa',     // 主背景
-                        'surface-card': '#ffffff', // 卡片背景
-                        border: '#e2e8f0',      // 边框颜色
-                        'text-primary': '#1a202c', // 主要文字
-                        'text-secondary': '#4a5568', // 次要文字
-                        'text-light': '#718096',    // 浅色文字
-                        success: '#4caf50',
-                        warning: '#ff9800',
-                        danger: '#f44336',
-                        info: '#2196f3',
-                        cute: {
-                            pink: '#2e7d32',
-                            lightpink: '#e8f5e9',
-                            purple: '#43a047',
-                            lavender: '#66bb6a',
-                            mint: '#c8e6c9',
-                            blue: '#81c784',
-                            yellow: '#ffd700',
-                            peach: '#ffccbc'
-                        }
+                        primary: '#10b981',     // emerald-500
+                        'primary-light': '#d1fae5', // emerald-100
+                        'primary-dark': '#047857',  // emerald-700
+                        secondary: '#3b82f6',   // blue-500
+                        surface: '#f0fdf4',     // emerald-50
+                        'surface-card': '#ffffff',
+                        success: '#10b981',     // emerald-500
+                        warning: '#f59e0b',     // amber-500
+                        danger: '#ef4444',      // red-500
+                        info: '#3b82f6',        // blue-500
                     },
                     fontFamily: {
                         sans: ['Inter', 'system-ui', 'sans-serif'],
-                    },
-                    boxShadow: {
-                        'card': '0 2px 10px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.08)',
-                        'card-hover': '0 4px 15px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.06)',
-                    },
-                    animation: {
-                        'pulse-fast': 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-                        'scan-line': 'scanLine 2s linear infinite',
-                    },
-                    keyframes: {
-                        scanLine: {
-                            '0%': { top: '0' },
-                            '100%': { top: '100%' },
-                        }
                     }
                 }
             }
@@ -65,27 +37,32 @@
             background: transparent;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: #cbd5e0;
+            background: #a7f3d0;
             border-radius: 3px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-            background: #a0aec0;
+            background: #34d399;
+        }
+        @keyframes scanLine {
+            0% { top: 0; }
+            100% { top: 100%; }
+        }
+        .scan-animation {
+            animation: scanLine 2s linear infinite;
         }
     </style>
 <script type="importmap">
 {
   "imports": {
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
     "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0",
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0"
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/"
   }
 }
 </script>
 <link rel="stylesheet" href="/index.css">
 </head>
-<body class="bg-surface text-text-primary font-sans min-h-screen">
+<body class="bg-surface text-gray-800 font-sans min-h-screen">
     <div id="root"></div>
 <script type="module" src="/index.tsx"></script>
 </body>

@@ -1,29 +1,34 @@
-export type Visitor = {
+export type ApplicationStatus = 'Pending' | 'Approved' | 'Rejected' | 'Expired';
+
+export interface Visitor {
     id: string;
     name: string;
     phone: string;
-    idType: 'id-card' | 'passport' | 'other';
+    idType: string;
     idNumber: string;
-    photoUrl?: string;
-};
+    photoUrl?: string; // For simulation
+}
 
-export type ApplicationStatus = 'pending' | 'approved' | 'rejected' | 'expired';
-
-export type Application = {
+export interface Application {
     id: string;
-    visitDate: string; // YYYY-MM-DD
-    startTime: string; // HH:mm
+    applicationDate: string;
+    visitDate: string;
+    startTime: string;
+    duration: number;
     location: string;
-    duration: number; // hours
     purpose: string;
     maxVisitors: number;
     validDays: number;
-    disclaimer: string;
-    visitors: Visitor[];
     status: ApplicationStatus;
-    createdAt: string;
-    rejectionReason?: string;
-    aiRiskAnalysis?: string; // Analysis from Gemini
-};
+    visitors: Visitor[];
+}
 
-export type FilterType = 'all' | 'pending' | 'approved' | 'rejected' | 'expired';
+export interface VerificationLog {
+    id: string;
+    visitorName: string;
+    applicationId: string;
+    idNumber: string;
+    timestamp: string;
+    status: 'Success' | 'Failed';
+    message: string;
+}
