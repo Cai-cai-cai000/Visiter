@@ -21,6 +21,7 @@ export interface Application {
     validDays: number;
     status: ApplicationStatus;
     visitors: Visitor[];
+    disclaimer?: string;
 }
 
 export interface VerificationLog {

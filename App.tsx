@@ -8,6 +8,13 @@ import { Application, ApplicationStatus, Visitor, VerificationLog } from './type
 
 // 1. New Visitor Form
 const NewVisitorForm: React.FC<{ onSubmit: (app: Application) => void }> = ({ onSubmit }) => {
+    const DEFAULT_DISCLAIMER = `访客须知：
+1. 访客进入校园需佩戴访客证，主动配合安保人员检查。
+2. 访客需遵守学校规章制度，保持安静，不影响正常教学秩序。
+3. 未经允许，不得进入教学区域和学生宿舍。
+4. 严禁携带易燃易爆等危险物品进入校园。
+5. 访客需对自身安全负责，学校不承担非学校责任造成的人身财产损失。`;
+
     const [visitors, setVisitors] = useState<Partial<Visitor>[]>([{ id: Date.now().toString() }]);
     const [formData, setFormData] = useState({
         visitDate: '',
@@ -17,8 +24,11 @@ const NewVisitorForm: React.FC<{ onSubmit: (app: Application) => void }> = ({ on
         purpose: '',
         maxVisitors: 5,
         validDays: 1,
-        disclaimer: '访客须知：\n1. 访客进入校园需佩戴访客证，主动配合安保人员检查。\n2. 访客需遵守学校规章制度，保持安静。\n3. 严禁携带易燃易爆等危险物品进入校园。'
+        disclaimer: DEFAULT_DISCLAIMER
     });
+    
+    // State for Invite Link Modal
+    const [inviteLink, setInviteLink] = useState('');
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
@@ -49,6 +59,17 @@ const NewVisitorForm: React.FC<{ onSubmit: (app: Application) => void }> = ({ on
         setVisitors(newVisitors);
     };
 
+    const handleGenerateLink = () => {
+        if (!formData.visitDate || !formData.startTime || !formData.location) {
+            alert("请至少完善拜访日期、时间和地点等基本信息");
+            return;
+        }
+        // Simulate generating a unique link
+        const randomId = Math.random().toString(36).substring(2, 10);
+        const link = `${window.location.origin}/invite/${randomId}`;
+        setInviteLink(link);
+    };
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         
@@ -73,6 +94,7 @@ const NewVisitorForm: React.FC<{ onSubmit: (app: Application) => void }> = ({ on
             purpose: formData.purpose,
             maxVisitors: Number(formData.maxVisitors),
             validDays: Number(formData.validDays),
+            disclaimer: formData.disclaimer,
             status: 'Pending',
             visitors: visitors as Visitor[]
         };
@@ -132,6 +154,12 @@ const NewVisitorForm: React.FC<{ onSubmit: (app: Application) => void }> = ({ on
             </div>
 
             <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-1">免责申明</label>
+                <textarea name="disclaimer" rows={6} value={formData.disclaimer} onChange={handleInputChange}
+                    className="w-full px-4 py-2 bg-white border border-green-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all text-sm text-gray-600"></textarea>
+            </div>
+
+            <div className="mb-6">
                 <div className="flex items-center justify-between mb-4">
                     <h3 className="text-sm font-semibold text-gray-700">访客信息</h3>
                     <button type="button" onClick={addVisitor} className="flex items-center px-3 py-1.5 text-xs text-primary border border-primary rounded-lg hover:bg-primary/10 transition-all">
@@ -173,9 +201,9 @@ const NewVisitorForm: React.FC<{ onSubmit: (app: Application) => void }> = ({ on
                                         className="w-full px-3 py-2 bg-white border border-gray-200 rounded-md text-sm focus:outline-none focus:border-primary" />
                                 </div>
                                 <div className="flex items-center">
-                                    <label className="flex items-center justify-center w-full h-10 border border-dashed border-gray-300 rounded-md cursor-pointer hover:bg-white text-gray-400 text-xs">
+                                    <label className="flex items-center justify-center w-full h-10 border border-dashed border-gray-300 rounded-md cursor-pointer hover:bg-white text-gray-400 text-xs transition-colors">
                                         <i className="fa fa-camera mr-2"></i> 上传照片 (模拟)
-                                        <input type="file" className="hidden" />
+                                        <input type="file" className="hidden" accept="image/*" />
                                     </label>
                                 </div>
                             </div>
@@ -185,13 +213,48 @@ const NewVisitorForm: React.FC<{ onSubmit: (app: Application) => void }> = ({ on
             </div>
 
             <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
-                <button type="button" className="px-4 py-2 border border-primary text-primary rounded-lg hover:bg-primary/10 transition-all font-medium">
-                    生成邀请链接
+                <button type="button" onClick={handleGenerateLink} className="px-4 py-2 border border-primary text-primary rounded-lg hover:bg-primary/10 transition-all font-medium">
+                    <i className="fa fa-link mr-1"></i> 生成邀请链接
                 </button>
                 <button type="submit" className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-all shadow-md shadow-primary/30 font-medium">
-                    提交申请
+                    <i className="fa fa-paper-plane mr-1"></i> 提交申请
                 </button>
             </div>
+
+            {/* Invite Link Modal */}
+            <Modal
+                isOpen={!!inviteLink}
+                onClose={() => setInviteLink('')}
+                title="访客邀请链接"
+            >
+                <div className="p-4">
+                    <p className="text-sm text-gray-600 mb-3">
+                        请将此链接发送给访客，访客可通过链接完善个人信息（包括姓名、手机号、照片等）并提交申请。
+                    </p>
+                    <div className="flex items-center gap-2 bg-gray-50 p-3 rounded border border-gray-200 mb-4">
+                        <input 
+                            type="text" 
+                            readOnly 
+                            value={inviteLink} 
+                            className="bg-transparent border-none w-full text-sm text-gray-800 focus:outline-none font-mono"
+                        />
+                        <button 
+                            type="button"
+                            onClick={() => {
+                                navigator.clipboard.writeText(inviteLink);
+                                alert('链接已复制');
+                            }}
+                            className="text-primary hover:text-primary-dark font-medium text-sm whitespace-nowrap"
+                        >
+                            复制
+                        </button>
+                    </div>
+                    <div className="text-xs text-gray-500">
+                        <i className="fa fa-info-circle mr-1"></i>
+                        链接有效期为24小时，每个链接最多可登记{formData.maxVisitors}名访客。
+                    </div>
+                </div>
+            </Modal>
         </form>
     );
 };
@@ -589,6 +652,15 @@ const App: React.FC = () => {
         }
     };
 
+    // Helper to calculate expiry date
+    const getExpiryDate = (dateStr: string, days: number) => {
+        if(!dateStr) return '';
+        const date = new Date(dateStr);
+        // Valid days includes the start day, so add (days - 1)
+        date.setDate(date.getDate() + (Math.max(1, days) - 1));
+        return date.toLocaleDateString().replace(/\//g, '-');
+    };
+
     return (
         <div className="max-w-7xl mx-auto p-4 md:p-6 pb-20">
             {/* Header / Breadcrumb */}
@@ -692,7 +764,12 @@ const App: React.FC = () => {
                                         viewApp.status === 'Rejected' ? 'bg-red-100 text-red-700' :
                                         viewApp.status === 'Expired' ? 'bg-gray-100 text-gray-600' :
                                         'bg-yellow-100 text-yellow-700'
-                                    }`}>{viewApp.status}</span>
+                                    }`}>
+                                        {viewApp.status === 'Pending' ? '待审核' :
+                                         viewApp.status === 'Approved' ? '已通过' :
+                                         viewApp.status === 'Rejected' ? '已拒绝' :
+                                         viewApp.status === 'Expired' ? '已过期' : viewApp.status}
+                                    </span>
                                 </div>
                             </div>
                         </div>
@@ -721,6 +798,12 @@ const App: React.FC = () => {
                                     <span className="text-gray-500 block mb-1">拜访事由：</span>
                                     <p className="font-medium text-gray-800 bg-white p-2 rounded border border-gray-100">{viewApp.purpose}</p>
                                 </div>
+                                {viewApp.disclaimer && (
+                                    <div className="col-span-2 mt-2">
+                                        <span className="text-gray-500 block mb-1">免责申明：</span>
+                                        <p className="text-xs text-gray-600 bg-gray-100 p-2 rounded whitespace-pre-line">{viewApp.disclaimer}</p>
+                                    </div>
+                                )}
                             </div>
                         </div>
 
@@ -814,7 +897,9 @@ const App: React.FC = () => {
                                 </div>
                                 <div className="flex justify-between">
                                     <span>有效期至:</span>
-                                    <span className="font-medium text-gray-800">{qrModalApp.visitDate} 23:59</span>
+                                    <span className="font-medium text-gray-800">
+                                        {getExpiryDate(qrModalApp.visitDate, qrModalApp.validDays)} 23:59
+                                    </span>
                                 </div>
                                 <div className="flex justify-between">
                                     <span>拜访地点:</span>
