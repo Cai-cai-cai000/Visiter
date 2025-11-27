@@ -1,0 +1,7 @@
+{
+  "name": "Sakura Visitor System",
+  "description": "A cute and functional visitor management system for schools with Gemini AI integration for security checks.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
