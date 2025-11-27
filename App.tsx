@@ -665,12 +665,12 @@ const App: React.FC = () => {
         <div className="max-w-7xl mx-auto p-4 md:p-6 pb-20">
             {/* Header / Breadcrumb */}
             <div className="mb-8">
-                <nav className="text-sm text-gray-500 mb-2 flex items-center gap-2">
+                {/* <nav className="text-sm text-gray-500 mb-2 flex items-center gap-2">
                      <i className="fa fa-home"></i> 首页 
                      <i className="fa fa-angle-right text-gray-300"></i> 学校管理 
                      <i className="fa fa-angle-right text-gray-300"></i> <span className="text-primary font-medium">访客申请管理</span>
-                </nav>
-                <h1 className="text-2xl font-bold text-gray-800">生态校园访客系统</h1>
+                </nav> */}
+                <h1 className="text-2xl font-bold text-gray-800 text-center">校园访客系统</h1>
             </div>
 
             {/* Stats */}
