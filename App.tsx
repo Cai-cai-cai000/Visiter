@@ -6,8 +6,11 @@ import { Application, ApplicationStatus, Visitor, VerificationLog } from './type
 
 // --- Tab Components ---
 
-// 1. New Visitor Form
-const NewVisitorForm: React.FC<{ onSubmit: (app: Application) => void }> = ({ onSubmit }) => {
+// 1. New Visitor Form (Host View)
+const NewVisitorForm: React.FC<{ 
+    onSubmit: (app: Application) => void;
+    onSimulateLink: (tripDetails: any) => void;
+}> = ({ onSubmit, onSimulateLink }) => {
     const DEFAULT_DISCLAIMER = `访客须知：
 1. 访客进入校园需佩戴访客证，主动配合安保人员检查。
 2. 访客需遵守学校规章制度，保持安静，不影响正常教学秩序。
@@ -29,6 +32,7 @@ const NewVisitorForm: React.FC<{ onSubmit: (app: Application) => void }> = ({ on
     
     // State for Invite Link Modal
     const [inviteLink, setInviteLink] = useState('');
+    const [draftTripDetails, setDraftTripDetails] = useState<any>(null);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
@@ -60,14 +64,22 @@ const NewVisitorForm: React.FC<{ onSubmit: (app: Application) => void }> = ({ on
     };
 
     const handleGenerateLink = () => {
-        if (!formData.visitDate || !formData.startTime || !formData.location) {
-            alert("请至少完善拜访日期、时间和地点等基本信息");
+        if (!formData.visitDate || !formData.startTime || !formData.location || !formData.purpose) {
+            alert("请完善拜访日期、时间、地点及事由等基本信息");
             return;
         }
         // Simulate generating a unique link
         const randomId = Math.random().toString(36).substring(2, 10);
         const link = `${window.location.origin}/invite/${randomId}`;
         setInviteLink(link);
+        setDraftTripDetails({ ...formData });
+    };
+
+    const handleSimulateClick = () => {
+        if (draftTripDetails) {
+            onSimulateLink(draftTripDetails);
+            setInviteLink('');
+        }
     };
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -159,9 +171,10 @@ const NewVisitorForm: React.FC<{ onSubmit: (app: Application) => void }> = ({ on
                     className="w-full px-4 py-2 bg-white border border-green-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all text-sm text-gray-600"></textarea>
             </div>
 
-            <div className="mb-6">
+            {/* Manual Add Visitor Section - Optional if link is used, but kept for direct input */}
+            <div className="mb-6 border-t border-gray-100 pt-6">
                 <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-sm font-semibold text-gray-700">访客信息</h3>
+                    <h3 className="text-sm font-semibold text-gray-700">访客信息 (手动登记)</h3>
                     <button type="button" onClick={addVisitor} className="flex items-center px-3 py-1.5 text-xs text-primary border border-primary rounded-lg hover:bg-primary/10 transition-all">
                         <i className="fa fa-plus-circle mr-1"></i> 添加访客
                     </button>
@@ -178,12 +191,12 @@ const NewVisitorForm: React.FC<{ onSubmit: (app: Application) => void }> = ({ on
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
-                                    <input type="text" placeholder="姓名" required value={visitor.name || ''} 
+                                    <input type="text" placeholder="姓名" value={visitor.name || ''} 
                                         onChange={(e) => updateVisitor(index, 'name', e.target.value)}
                                         className="w-full px-3 py-2 bg-white border border-gray-200 rounded-md text-sm focus:outline-none focus:border-primary" />
                                 </div>
                                 <div>
-                                    <input type="tel" placeholder="手机号码" required value={visitor.phone || ''}
+                                    <input type="tel" placeholder="手机号码" value={visitor.phone || ''}
                                         onChange={(e) => updateVisitor(index, 'phone', e.target.value)}
                                         className="w-full px-3 py-2 bg-white border border-gray-200 rounded-md text-sm focus:outline-none focus:border-primary" />
                                 </div>
@@ -196,7 +209,7 @@ const NewVisitorForm: React.FC<{ onSubmit: (app: Application) => void }> = ({ on
                                     </select>
                                 </div>
                                 <div className="md:col-span-2">
-                                    <input type="text" placeholder="证件号码" required value={visitor.idNumber || ''}
+                                    <input type="text" placeholder="证件号码" value={visitor.idNumber || ''}
                                         onChange={(e) => updateVisitor(index, 'idNumber', e.target.value)}
                                         className="w-full px-3 py-2 bg-white border border-gray-200 rounded-md text-sm focus:outline-none focus:border-primary" />
                                 </div>
@@ -249,6 +262,15 @@ const NewVisitorForm: React.FC<{ onSubmit: (app: Application) => void }> = ({ on
                             复制
                         </button>
                     </div>
+                    <div className="flex justify-center mb-4">
+                        <button 
+                            type="button"
+                            onClick={handleSimulateClick}
+                            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all text-sm shadow-md"
+                        >
+                            <i className="fa fa-external-link mr-1"></i> 模拟访客点击链接 (演示用)
+                        </button>
+                    </div>
                     <div className="text-xs text-gray-500">
                         <i className="fa fa-info-circle mr-1"></i>
                         链接有效期为24小时，每个链接最多可登记{formData.maxVisitors}名访客。
@@ -259,7 +281,188 @@ const NewVisitorForm: React.FC<{ onSubmit: (app: Application) => void }> = ({ on
     );
 };
 
-// 2. Application List
+// 2. Guest Registration Form (Visitor View)
+const GuestRegistration: React.FC<{
+    tripDetails: any;
+    onSubmit: (visitors: Visitor[]) => void;
+    onCancel: () => void;
+}> = ({ tripDetails, onSubmit, onCancel }) => {
+    const [visitors, setVisitors] = useState<Partial<Visitor>[]>([{ id: Date.now().toString() }]);
+    
+    // Auto-fill random data for demo purposes
+    const fillDemoData = () => {
+         setVisitors([{
+             id: Date.now().toString(),
+             name: '访客演示',
+             phone: '13900000000',
+             idType: 'id-card',
+             idNumber: '330106199001010000',
+             photoUrl: 'simulated'
+         }]);
+    };
+
+    const addVisitor = () => {
+        if (visitors.length >= (tripDetails.maxVisitors || 5)) {
+            alert(`最多添加 ${tripDetails.maxVisitors} 位访客`);
+            return;
+        }
+        setVisitors([...visitors, { id: Date.now().toString() }]);
+    };
+
+    const removeVisitor = (index: number) => {
+        if (visitors.length <= 1) return;
+        const newVisitors = [...visitors];
+        newVisitors.splice(index, 1);
+        setVisitors(newVisitors);
+    };
+
+    const updateVisitor = (index: number, field: keyof Visitor, value: string) => {
+        const newVisitors = [...visitors];
+        newVisitors[index] = { ...newVisitors[index], [field]: value };
+        setVisitors(newVisitors);
+    };
+
+    const handlePhotoUpload = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            // Simulate upload
+            updateVisitor(index, 'photoUrl', URL.createObjectURL(e.target.files[0]));
+        }
+    };
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        const valid = visitors.every(v => v.name && v.phone && v.idNumber && v.photoUrl);
+        if(!valid) {
+            alert("请完善所有访客信息（含照片）");
+            return;
+        }
+        onSubmit(visitors as Visitor[]);
+    };
+
+    return (
+        <div className="bg-white min-h-screen pb-10">
+            {/* Header */}
+            <div className="bg-primary p-6 text-white text-center">
+                <h1 className="text-xl font-bold mb-2">访客登记</h1>
+                <p className="text-primary-light text-sm">请完善您的来访信息</p>
+            </div>
+
+            <div className="max-w-xl mx-auto -mt-4 px-4">
+                {/* Trip Info Card */}
+                <div className="bg-white rounded-xl shadow-lg p-5 mb-6 border border-gray-100">
+                    <h2 className="text-gray-800 font-bold border-b border-gray-100 pb-2 mb-3">邀请信息</h2>
+                    <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                            <span className="text-gray-500">拜访日期</span>
+                            <span className="font-medium">{tripDetails.visitDate}</span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className="text-gray-500">时间/时长</span>
+                            <span className="font-medium">{tripDetails.startTime} ({tripDetails.duration}小时)</span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className="text-gray-500">地点</span>
+                            <span className="font-medium">{tripDetails.location}</span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className="text-gray-500">事由</span>
+                            <span className="font-medium">{tripDetails.purpose}</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Disclaimer */}
+                <div className="bg-orange-50 rounded-xl p-4 mb-6 border border-orange-100">
+                    <h3 className="text-orange-800 font-bold text-sm mb-2">
+                        <i className="fa fa-exclamation-circle mr-1"></i> 免责申明
+                    </h3>
+                    <div className="text-xs text-orange-700 whitespace-pre-line leading-relaxed">
+                        {tripDetails.disclaimer}
+                    </div>
+                    <div className="mt-3 flex items-center">
+                        <input type="checkbox" id="agree" className="w-4 h-4 text-primary rounded" defaultChecked />
+                        <label htmlFor="agree" className="ml-2 text-xs text-gray-600">我已阅读并同意以上内容</label>
+                    </div>
+                </div>
+
+                {/* Visitor Forms */}
+                <form onSubmit={handleSubmit}>
+                    <div className="space-y-4 mb-6">
+                         <div className="flex justify-between items-center">
+                            <h2 className="font-bold text-gray-800">访客信息 ({visitors.length})</h2>
+                            <button type="button" onClick={fillDemoData} className="text-xs text-gray-400">填充演示数据</button>
+                        </div>
+                        
+                        {visitors.map((v, i) => (
+                            <div key={v.id} className="bg-gray-50 border border-gray-200 rounded-lg p-4 relative">
+                                {visitors.length > 1 && (
+                                    <button type="button" onClick={() => removeVisitor(i)} className="absolute top-2 right-2 text-gray-400 hover:text-red-500">
+                                        <i className="fa fa-times-circle"></i>
+                                    </button>
+                                )}
+                                <div className="space-y-3">
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="text-xs text-gray-500 block mb-1">姓名 <span className="text-red-500">*</span></label>
+                                            <input type="text" className="w-full text-sm p-2 border rounded focus:border-primary focus:outline-none" 
+                                                value={v.name || ''} onChange={e => updateVisitor(i, 'name', e.target.value)} placeholder="真实姓名" required />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs text-gray-500 block mb-1">手机号 <span className="text-red-500">*</span></label>
+                                            <input type="tel" className="w-full text-sm p-2 border rounded focus:border-primary focus:outline-none" 
+                                                value={v.phone || ''} onChange={e => updateVisitor(i, 'phone', e.target.value)} placeholder="联系电话" required />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="text-xs text-gray-500 block mb-1">证件号码 <span className="text-red-500">*</span></label>
+                                        <div className="flex gap-2">
+                                            <select className="text-sm p-2 border rounded bg-white w-24" 
+                                                value={v.idType || 'id-card'} onChange={e => updateVisitor(i, 'idType', e.target.value)}>
+                                                <option value="id-card">身份证</option>
+                                                <option value="passport">护照</option>
+                                            </select>
+                                            <input type="text" className="flex-1 text-sm p-2 border rounded focus:border-primary focus:outline-none" 
+                                                value={v.idNumber || ''} onChange={e => updateVisitor(i, 'idNumber', e.target.value)} placeholder="请输入证件号" required />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="text-xs text-gray-500 block mb-1">人脸照片 <span className="text-red-500">*</span></label>
+                                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center bg-white hover:bg-gray-50 transition-colors cursor-pointer relative">
+                                            {v.photoUrl ? (
+                                                <div className="relative inline-block">
+                                                    <img src={v.photoUrl === 'simulated' ? "https://picsum.photos/100/100" : v.photoUrl} className="h-20 w-20 object-cover rounded-full mx-auto" alt="Preview" />
+                                                    <span className="block text-xs text-green-500 mt-1"><i className="fa fa-check-circle"></i> 已上传</span>
+                                                </div>
+                                            ) : (
+                                                <div className="text-gray-400">
+                                                    <i className="fa fa-camera text-2xl mb-1"></i>
+                                                    <div className="text-xs">点击上传照片</div>
+                                                </div>
+                                            )}
+                                            <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*" onChange={e => handlePhotoUpload(i, e)} />
+                                            {v.photoUrl === 'simulated' && <input type="hidden" value="simulated" />}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                        
+                        <button type="button" onClick={addVisitor} className="w-full py-2 border border-dashed border-primary text-primary text-sm rounded-lg hover:bg-primary/5">
+                            <i className="fa fa-plus mr-1"></i> 添加同行人员
+                        </button>
+                    </div>
+
+                    <div className="flex gap-3 mt-8">
+                        <button type="button" onClick={onCancel} className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-lg font-medium">取消</button>
+                        <button type="submit" className="flex-1 py-3 bg-primary text-white rounded-lg font-bold shadow-lg shadow-primary/30">提交申请</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
+
+// 3. Application List
 const ApplicationList: React.FC<{ 
     applications: Application[], 
     onAction: (type: 'Approve' | 'Reject' | 'View' | 'QR', app: Application) => void
@@ -380,7 +583,7 @@ const ApplicationList: React.FC<{
     );
 };
 
-// 3. QR Verification
+// 4. QR Verification
 const QRVerification: React.FC<{ applications: Application[] }> = ({ applications }) => {
     const [isScanning, setIsScanning] = useState(false);
     const [result, setResult] = useState<{success: boolean, message: string, detail?: any} | null>(null);
@@ -605,6 +808,9 @@ const App: React.FC = () => {
     const [viewApp, setViewApp] = useState<Application | null>(null);
     const [confirmAction, setConfirmAction] = useState<{ id: string, status: ApplicationStatus, title: string, message: string } | null>(null);
 
+    // Guest Mode State
+    const [guestTripData, setGuestTripData] = useState<any>(null);
+
     // Derived Stats
     const stats = {
         today: 12, // Simulation
@@ -615,6 +821,29 @@ const App: React.FC = () => {
     const handleNewApplication = (app: Application) => {
         setApplications([app, ...applications]);
         setActiveTab('list');
+    };
+
+    const handleGuestSubmit = (visitors: Visitor[]) => {
+        if (!guestTripData) return;
+        
+        const newApp: Application = {
+            id: `VS${new Date().toISOString().replace(/\D/g, '').slice(0, 14)}`,
+            applicationDate: new Date().toLocaleString(),
+            visitDate: guestTripData.visitDate,
+            startTime: guestTripData.startTime,
+            duration: Number(guestTripData.duration),
+            location: guestTripData.location,
+            purpose: guestTripData.purpose,
+            maxVisitors: Number(guestTripData.maxVisitors),
+            validDays: Number(guestTripData.validDays),
+            disclaimer: guestTripData.disclaimer,
+            status: 'Pending',
+            visitors: visitors
+        };
+        
+        handleNewApplication(newApp);
+        setGuestTripData(null); // Exit guest mode
+        alert("访客登记成功，已提交审核！");
     };
 
     const handleStatusChange = (id: string, status: ApplicationStatus) => {
@@ -661,16 +890,28 @@ const App: React.FC = () => {
         return date.toLocaleDateString().replace(/\//g, '-');
     };
 
+    // Render Guest View if active
+    if (guestTripData) {
+        return (
+            <GuestRegistration 
+                tripDetails={guestTripData} 
+                onSubmit={handleGuestSubmit} 
+                onCancel={() => setGuestTripData(null)} 
+            />
+        );
+    }
+
+    // Render Admin View
     return (
         <div className="max-w-7xl mx-auto p-4 md:p-6 pb-20">
             {/* Header / Breadcrumb */}
             <div className="mb-8">
-                {/* <nav className="text-sm text-gray-500 mb-2 flex items-center gap-2">
+                <nav className="text-sm text-gray-500 mb-2 flex items-center gap-2">
                      <i className="fa fa-home"></i> 首页 
                      <i className="fa fa-angle-right text-gray-300"></i> 学校管理 
                      <i className="fa fa-angle-right text-gray-300"></i> <span className="text-primary font-medium">访客申请管理</span>
-                </nav> */}
-                <h1 className="text-2xl font-bold text-gray-800 text-center">校园访客系统</h1>
+                </nav>
+                <h1 className="text-2xl font-bold text-gray-800">生态校园访客系统</h1>
             </div>
 
             {/* Stats */}
@@ -726,7 +967,12 @@ const App: React.FC = () => {
 
                 {/* Tab Content */}
                 <div className="bg-surface/30 min-h-[600px]">
-                    {activeTab === 'new' && <NewVisitorForm onSubmit={handleNewApplication} />}
+                    {activeTab === 'new' && (
+                        <NewVisitorForm 
+                            onSubmit={handleNewApplication} 
+                            onSimulateLink={(details) => setGuestTripData(details)}
+                        />
+                    )}
                     {activeTab === 'list' && (
                         <ApplicationList 
                             applications={applications} 
